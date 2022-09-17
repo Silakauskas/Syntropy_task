@@ -1,0 +1,1 @@
+# Syntropy_task
