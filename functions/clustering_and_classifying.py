@@ -8,6 +8,12 @@ from sklearn.decomposition import PCA
 
 
 def KMeans_draw_elbow_for_n_clusters(df,clusters):
+    """ 
+    Draws the 'elbow' graph, which helps to determine the number of clusters
+    Where an 'elbow' can be seen in graph - that is the potential number of clusters
+    df - data to cluster
+    clusters - max number of clusters
+    """
     scaler = preprocessing.MinMaxScaler()
     data_scaled = scaler.fit_transform(df)
     inertia = []
@@ -26,6 +32,12 @@ def KMeans_draw_elbow_for_n_clusters(df,clusters):
 
 
 def KMeans_clustering(n_clusters,df,full_data):
+    """ 
+    Clustering using KMeans method
+    n_clusters - selected number of clusters
+    df - data to cluster
+    full_data - data to append cluster column to
+    """
     scaler = preprocessing.MinMaxScaler()
     data_scaled = scaler.fit_transform(df)
     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(data_scaled)
@@ -38,6 +50,11 @@ def KMeans_clustering(n_clusters,df,full_data):
 
 
 def PCA_clustering(n_clusters,df):
+    """ 
+    Clustering data with PCA
+    n_clusters - number of clusters to format
+    df - data to cluster
+    """
     Sc = StandardScaler()
     X = Sc.fit_transform(df)
     print('Fitting PCA start:', time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
@@ -51,6 +68,13 @@ def PCA_clustering(n_clusters,df):
 
 
 def compare_and_merge_results(pca_df, kmeans_df):
+    """ 
+    Merge results of Kmeans and pca clustering
+    Determine on which servers these methods 'agree'
+    Mark the 'grey area' servers
+    pca_df - pca clustering results
+    kmeans_df - kmeans clustering results
+    """
     kmeans_df = kmeans_df.rename({'cluster': 'knn_cluster'}, axis=1)
 
     print("(PCA) Potentially 'good' servers:", len(pca_df[pca_df["pca_cluster"] == 0]))

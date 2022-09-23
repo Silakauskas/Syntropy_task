@@ -6,6 +6,9 @@ import time
 
 
 def check_for_duplicates(conn):
+    """ 
+    Checking for duplicate rows in all tables of specified database connection.
+    """
     for table in inspect(conn).get_table_names():
         unique_in_table = pd.read_sql("SELECT count(*) from (select DISTINCT * FROM {}) as temp".format(table), conn)
         total_in_table = pd.read_sql("SELECT count(*) from {}".format(table), conn)
@@ -15,23 +18,38 @@ def check_for_duplicates(conn):
         
         
         
+        
+################################################################################################################
+###########    sdn_metrics - average bytes by server (taking into account huge skewness of the data)
+
 def bytes_by_server_look_all(conn):
+    """ 
+    Primary analysis of data (READS ALL TABLE) - not the best decision 
+    """
     server_bytes = pd.read_sql("""
     SELECT server_id, agents_pair, pkts, bytes, connection_id
     FROM sdn_metrics
     ORDER by bytes
     """,conn)
-    
     display(server_bytes.describe())
     print("Skewness of bytes:",server_bytes['bytes'].skew(),"\n")
     
     
-def mark_anomaly(row,column,ul,ll):  
+def mark_anomaly(row,column,ul,ll):
+    """ 
+    Based on upper limit (ul) and lower limit (ll), returns if value of a row and column is a potential anomaly 
+    row and column - defines value that will be checked agains ul and ll
+    """
     if row[column] > ul or row[column] < ll:
         return 1
     return 0
 
+
 def identify_anomaly_IQR(df, column):
+    """ 
+    IQR method to determine upper and lower limits to find potential anomalies for specified column 
+    df - data set to look for anomalies in
+    """
     df_final = df
     Q1=df[column].quantile(0.25)
     Q3=df[column].quantile(0.75)
@@ -41,7 +59,14 @@ def identify_anomaly_IQR(df, column):
     df_final['is_anomaly'] = df_final.apply(lambda row: mark_anomaly(row,column,ul,ll), axis=1)
     return df_final     
     
+    
 def agg_bytes_by_server_by_column(column,conn):
+    """ 
+    Get bytes average grouped by agents_pair
+    Identify potential anomalies of those averages
+    First look into data with potential anomalies removed
+    column - which column to look into while taking average for each server
+    """
     server_bytes = pd.read_sql("""
     SELECT avg(bytes), {}
     FROM sdn_metrics
@@ -71,6 +96,11 @@ def agg_bytes_by_server_by_column(column,conn):
 
 
 def look_into_big_bytes(df,conn):
+    """ 
+    Count total number of SDN_metrics records per each server
+    What part of data might these potential anomaly bytes consist?
+    df - data set with identified potential anomalies
+    """
     count_by_agents = pd.read_sql("""
         SELECT count(*), agents_pair
         FROM sdn_metrics
@@ -97,6 +127,11 @@ def look_into_big_bytes(df,conn):
 
 
 def agg_usual_bytes_and_big_bytes(df,conn):
+    """ 
+    Get average bytes by server (excluding records with agents_pairs that had incredibly much data) - usual records
+    Get a ratio of server's total records vs server's big byte agent_pairs records
+    df - list of agents that had records with incredibly big byte amounts on average
+    """
     big_agents_tuple = tuple(df)
     print("Query 1/2 running...")
     print("Start:", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
@@ -148,14 +183,18 @@ def agg_usual_bytes_and_big_bytes(df,conn):
           int((big_agent_servers["big_agent_proc"] * big_agent_servers["total_sdn_reports"]).sum()))
 
     return pd.merge(big_agent_servers,avg_server_bytes, on='id')
-
-
-
-
-
-
+        
+        
+        
+        
+################################################################################################################
+###########    peer_metrics - SDN interfaces assigned by server
 
 def agg_assigned_SDN_intf_by_server(conn):
+    """ 
+    For each server count the number of assigned specific SDN1, SDN2, SDN3 interfaces
+    Count the total of all SDN interfaces assigned to each server
+    """
     print("Query start:", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
     assigned_SDNs = pd.read_sql(""" 
         WITH tSDN1_COUNT AS (
@@ -196,9 +235,17 @@ def agg_assigned_SDN_intf_by_server(conn):
     print("Number of servers that had NO SDN interface assigned at all:",
           len(assigned_SDNs[assigned_SDNs["total_sdn_int_count"] == 0]))
     return assigned_SDNs
-
+        
+        
+        
+        
+################################################################################################################
+###########    peer_metrics - packet losses by server
 
 def check_packet_loss_exceptions(conn):
+    """ 
+    Check if there are any exceptions, because packet loss can be only between 0 and 1, otherwise it might disrupt the statistic
+    """
     pl_stats_exceptions = pd.read_sql("""
         SELECT *
         FROM peer_metrics
@@ -214,7 +261,11 @@ def check_packet_loss_exceptions(conn):
     display(set(pl_stats_exceptions[pl_stats_exceptions["sdn2_packet_loss"] > 1]["sdn2_packet_loss"]))
     display(set(pl_stats_exceptions[pl_stats_exceptions["sdn3_packet_loss"] > 1]["sdn3_packet_loss"]))
 
+
 def agg_packet_loss_stats(conn):
+    """ 
+    Get the average of packet loss for each SDN for each server and get the common average
+    """
     print("Query start:", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
     packet_loss_avg = pd.read_sql("""
         WITH tSDN1_AVG AS (
@@ -265,5 +316,8 @@ def agg_packet_loss_stats(conn):
 
 
 def color_negative_red(val):
+    """ 
+    Helping function to mark high correlated values in a table
+    """
     color = 'red' if val > 0.6 or val < -0.6 else 'black'
     return 'color: % s' % color
